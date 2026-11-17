@@ -44,3 +44,23 @@ func ExampleConfig() {
 	fmt.Println(err)
 	// Output: <nil>
 }
+
+func ExampleConfig_onRetry() {
+	cfg := retry.DefaultConfig()
+	cfg.OnRetry = func(event retry.Event) {
+		fmt.Printf("attempt %d failed: %v\n", event.Attempt, event.Err)
+	}
+
+	attempts := 0
+	err := retry.Do(context.Background(), cfg, func() error {
+		attempts++
+		if attempts == 1 {
+			return errors.New("temporary failure")
+		}
+		return nil
+	})
+	fmt.Println(err)
+	// Output:
+	// attempt 1 failed: temporary failure
+	// <nil>
+}
