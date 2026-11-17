@@ -30,6 +30,23 @@ type Config struct {
 	// Multiplier grows the delay on each subsequent attempt.
 	// 1.0 means constant delay; 2.0 means doubling (exponential backoff).
 	Multiplier float64
+
+	// OnRetry is called after a failed attempt and before waiting for the
+	// next attempt. It can be used to emit logs, metrics, or traces.
+	// A nil callback disables retry notifications.
+	OnRetry func(Event)
+}
+
+// Event describes a failed attempt that will be retried.
+type Event struct {
+	// Attempt is the one-based number of the failed attempt.
+	Attempt int
+
+	// Err is the error returned by the failed attempt.
+	Err error
+
+	// Delay is the amount of time Do will wait before the next attempt.
+	Delay time.Duration
 }
 
 // DefaultConfig returns a Config with sensible production defaults:
@@ -89,6 +106,13 @@ func Do(ctx context.Context, cfg Config, fn func() error) error {
 
 		if attempt < cfg.MaxAttempts-1 {
 			delay := nextDelay(cfg.Delay, cfg.Multiplier, cfg.MaxDelay, attempt)
+			if cfg.OnRetry != nil {
+				cfg.OnRetry(Event{
+					Attempt: attempt + 1,
+					Err:     err,
+					Delay:   delay,
+				})
+			}
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
